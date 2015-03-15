@@ -20,6 +20,7 @@
 #include <linux/i2c-dev.h>
 #include "mcp3008Spi.h"
 #include <curl/curl.h>
+#include <array>
 namespace opts = boost::program_options;
 
 // TODO: print warning if accelerometer magnitude is not close to 1 when starting up
@@ -202,11 +203,30 @@ curl_easy_cleanup(curl);
 }//if
 }
 
+void send_force(int* force)
+{
+	char data_buf[150];
+  sprintf(data_buf, "{\'1\':%d,\'2\':%d,\'3\':%d, \'4\':%d,\'5\':%d,\'6\':%d, \'7\':%d,\'8\':%d,\'9\':%d  ,\    '10\':%d}", force[0], force[1], force[2], force[3], force[4], force[5], force[6], force[7], force[8], force[9]);
+  char url[20];
+	sprintf(url, "force");
+	curl_request(data_buf,strlen(data_buf),url);
+	
+}
 
-void send_accel(const vector& acceleration_corrected)
+void send_velo(quaternion& velocity)
 {
 	char data_buf[50];
-        sprintf(data_buf, "{\'x\':%f,\'y\':%f,\'z\':%f}", acceleration_corrected[0], acceleration_corrected[1], acceleration_corrected[2]);
+        sprintf(data_buf, "{\'x\':%f,\'y\':%f,\'z\':%f}", velocity.x(), velocity.y(), velocity.z());
+	char url[20];
+	sprintf(url, "velo");
+	curl_request(data_buf,strlen(data_buf),url);
+	
+}
+
+void send_accel(const vector& acceleration_corrected, float dt)
+{
+	char data_buf[50];
+        sprintf(data_buf, "{\'x\':%f,\'y\':%f,\'z\':%f, \'dt\':%f}", acceleration_corrected[0], acceleration_corrected[1], acceleration_corrected[2], dt);
 	char url[20];
 	sprintf(url, "accel");
 	curl_request(data_buf,strlen(data_buf),url);
@@ -230,6 +250,7 @@ void ahrs(IMU & imu, fuse_function * fuse, rotation_output_function * output)
     quaternion velocity2 = quaternion::Identity();
     quaternion velocity_temp = quaternion::Identity();
     vector acceleration_corrected;
+    int* force;
     float velocity2_mag;
     float velocity_mag;
     float velocity_old_mag;
@@ -250,7 +271,7 @@ void ahrs(IMU & imu, fuse_function * fuse, rotation_output_function * output)
 	rotation_matrix = rotation.toRotationMatrix();
 	velocity_temp = velocity;
 	vector gravity_vector = (vector)rotation_matrix.row(2);
-        acceleration_corrected[0] = acceleration[0] + gravity_vector[0];
+  acceleration_corrected[0] = acceleration[0] + gravity_vector[0];
 	acceleration_corrected[1] = acceleration[1] + gravity_vector[1];
 	acceleration_corrected[2] = acceleration[2] + gravity_vector[2];
 	velocity2.x() = acceleration_corrected[0]*9.81*dt + velocity.x();
@@ -258,7 +279,7 @@ void ahrs(IMU & imu, fuse_function * fuse, rotation_output_function * output)
 	velocity2.z() = acceleration_corrected[2]*9.81*dt + velocity.z();  
 	velocity2_mag = sqrtf(velocity2.x()*velocity2.x() + velocity2.y()*velocity2.y() + velocity2.z()*velocity2.z());
 	velocity_mag = sqrtf(velocity.x()*velocity.x() + velocity.y()*velocity.y() + velocity.z()*velocity.z());
-	velocity_old_mag = sqrtf(velocity_old.x()*velocity_old.x() + velocity_old.y()*velocity_old.y() + velocity_old.z()*velocity_old.z());
+	velocity_old_mag = sqrtf(velocity_old.x()*velocity_old.x() + velocity_old.y()*velocity_old.y() +  velocity_old.z()*velocity_old.z());
         
         if( velocity_mag < velocity2_mag && velocity_mag < velocity_old_mag){
         velocity.x() = 0;
@@ -278,9 +299,13 @@ void ahrs(IMU & imu, fuse_function * fuse, rotation_output_function * output)
         velocity.z() = 0;
         count += 1;
         }
-	send_accel(acceleration_corrected);		
-        a2d1.mcp3008_Scan(1);
-	a2d2.mcp3008_Scan(2);
+	send_accel(acceleration_corrected, dt);		
+  send_velo(velocity);
+  
+  force = a2d1.mcp3008_Scan(1);
+	force = a2d2.mcp3008_Scan(2);
+  send_force(force); 
+ 
         std::cout << "    " << acceleration << "    " << velocity << "    " << dt << std::endl << std::flush;
         // Ensure that each iteration of the loop takes at least 20 ms.
         while(millis() - start < 20)

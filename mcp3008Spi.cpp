@@ -1,4 +1,5 @@
 #include "mcp3008Spi.h"
+#include "vector.h"
 using namespace std;
 /**********************************************************
  * spiOpen() :function is called by the constructor.
@@ -104,8 +105,9 @@ int mcp3008Spi::spiWriteRead( unsigned char *data, int length)
  
 }
  
-void mcp3008Spi::mcp3008_Scan(int devNum)
+int* mcp3008Spi::mcp3008_Scan(int devNum)
 {
+  int force [16];
 	int a2dVal = 0; 
     int a2dChannel = 0;
 	unsigned char data[3];	
@@ -121,11 +123,18 @@ void mcp3008Spi::mcp3008_Scan(int devNum)
 		a2dVal = 0;
         a2dVal = (data[1]<< 8) & 0b1100000000; //merge data[1] & data[2] to get result
         a2dVal |=  (data[2] & 0xff);
-	      
+    if(devNum == 1){   
+	  force[a2dChannel] = a2dVal;
+    }
+    else{
+    force[8+a2dChannel] = a2dVal;
+    } 
+      
 		cout << "chnl"<<a2dChannel<<"=" << a2dVal << " ";
 	}
 	cout << endl;
 	a2dChannel = 0;
+  return force;
 }
 
 
