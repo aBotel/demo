@@ -180,10 +180,10 @@ void curl_request(char* buffer, size_t size, char* url)
 {
 CURL *curl;
 CURLcode res;
-char final_url[50];
-strcpy(final_url, "http:/");
-//strcat (final_url, "/fydp.ngrok.com/motion/api/v1/");
-strcat (final_url, url);
+char final_url[100];
+strncpy(final_url, BASE_URL, sizeof(char)*strlen(BASE_URL));
+strcpy (final_url+sizeof(char)*strlen(BASE_URL), "motion/api/v1/");
+strcpy (final_url+strlen(final_url), url);
 curl = curl_easy_init();
 if(curl){
 curl_easy_setopt(curl,CURLOPT_READDATA,buffer);
@@ -191,7 +191,7 @@ curl_easy_setopt(curl, CURLOPT_PUT, 1L);
 curl_easy_setopt(curl, CURLOPT_URL, final_url);
 curl_easy_setopt(curl,CURLOPT_BUFFERSIZE,size);
 res = curl_easy_perform(curl);
-        std::cout <<final_url << "   " << buffer  << "    "<< std::endl << std::flush;
+        std::cout << BASE_URL << "  " <<final_url << "   " << buffer  << "    "<< std::endl << std::flush;
 
 	if(res!=CURLE_OK)
 	{
@@ -206,7 +206,7 @@ curl_easy_cleanup(curl);
 void send_accel(const vector& acceleration_corrected)
 {
 	char data_buf[50];
-        sprintf(data_buf, "{x:%f,y:%f,z:%f}", acceleration_corrected[0], acceleration_corrected[1], acceleration_corrected[2]);
+        sprintf(data_buf, "{\'x\':%f,\'y\':%f,\'z\':%f}", acceleration_corrected[0], acceleration_corrected[1], acceleration_corrected[2]);
 	char url[20];
 	sprintf(url, "accel");
 	curl_request(data_buf,strlen(data_buf),url);
@@ -300,7 +300,7 @@ int main(int argc, char *argv[])
 		//int adxl1_addr = 0x53;
 		
 		// Define what all the command-line parameters are.
-        std::string mode, output_mode, i2cDevice;
+        std::string mode, output_mode, i2cDevice, url, comm_mode;
         opts::options_description desc("Allowed options");
         desc.add_options()
             ("help,h", "produce help message")
@@ -318,9 +318,9 @@ int main(int argc, char *argv[])
              "matrix: Direction Cosine Matrix.\n"
              "quaternion: Quaternion.\n"
              "euler: Euler angles (yaw, pitch, roll).\n")
-             ("url", opts::value<std::string>(&url)->default_value("http:/fydp.ngrok.com/"),
+             ("url,u", opts::value<std::string>(&url)->default_value("http:/fydp.ngrok.com/"),
              "url: specifies base url to post http requests to.\n")
-			       ("comm_mode", opts::value<std::string>(&comm_mode)->default_value("1"),
+			       ("comm_mode,c", opts::value<std::string>(&comm_mode)->default_value("1"),
              "communication protocol  to use 1-> wifi 0 -> bluetooth\n")
             ;
         opts::variables_map options;
@@ -382,9 +382,11 @@ int main(int argc, char *argv[])
         }
         else if (mode == "normal")
         {
-             BASE_URL = (char*)malloc(strlen(url.cstr())*sizeof(char));
-             COMM_MODE = (char*)malloc(strlen(comm_mode.cstr())*sizeof(char));
-            ahrs(imu, &fuse_default, output));
+             BASE_URL = (char*)malloc(strlen(url.c_str())*sizeof(char));
+             strcpy(BASE_URL,url.c_str());
+             COMM_MODE = (char*)malloc(strlen(comm_mode.c_str())*sizeof(char));
+             strcpy(COMM_MODE,comm_mode.c_str());
+            ahrs(imu, &fuse_default, output);
         }
         else
         {
