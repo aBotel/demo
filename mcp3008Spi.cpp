@@ -105,13 +105,15 @@ int mcp3008Spi::spiWriteRead( unsigned char *data, int length)
  
 }
  
-int* mcp3008Spi::mcp3008_Scan(int devNum)
+float* mcp3008Spi::mcp3008_Scan(int devNum)
 {
-  int force [16];
+  float *force_array = (float*)malloc(sizeof(float)*16);
 	int a2dVal = 0; 
-    int a2dChannel = 0;
+  float a2dValf = 0;
+  float a2dValc;
+  int a2dChannel = 0;
 	unsigned char data[3];	
-	cout << "A2D Num"<<devNum<<": ";
+	////cout << "A2D Num"<<devNum<<": ";
 	for (a2dChannel=0;a2dChannel<8;a2dChannel++)
     {        
 		data[0] = 1;  //  first byte transmitted -> start bit
@@ -123,18 +125,29 @@ int* mcp3008Spi::mcp3008_Scan(int devNum)
 		a2dVal = 0;
         a2dVal = (data[1]<< 8) & 0b1100000000; //merge data[1] & data[2] to get result
         a2dVal |=  (data[2] & 0xff);
-    if(devNum == 1){   
-	  force[a2dChannel] = a2dVal;
-    }
-    else{
-    force[8+a2dChannel] = a2dVal;
-    } 
+       
+      //a2dValf = ((244.22311957*(a2dVal*5/1023)*(a2dVal*(5/1023)))+(817.22895852*a2dVal*5/1023) - 129.26615357)*(9.81/1000);
       
-		cout << "chnl"<<a2dChannel<<"=" << a2dVal << " ";
+      a2dValc = a2dVal*(5.0/1023.0);
+      
+      a2dValf = 244.22311957*a2dValc*a2dValc+817.22895852*a2dValc-129.26615357;
+      
+      a2dValf *= (9.81/1000.0);
+      
+      if(a2dValf < 0.0){
+          a2dValf = 0.0;
+      }
+       
+	  force_array[a2dChannel] = a2dValf;
+    
+   
+    
+      
+		//cout << "chnl"<<a2dChannel<<"=" << a2dValf << "   " << a2dVal;
 	}
-	cout << endl;
+	//cout << endl;
 	a2dChannel = 0;
-  return force;
+  return force_array;
 }
 
 

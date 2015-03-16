@@ -41,7 +41,7 @@ public:
     mcp3008Spi(std::string devspi, unsigned char spiMode, unsigned int spiSpeed, unsigned char spibitsPerWord);
     ~mcp3008Spi();
     int spiWriteRead( unsigned char *data, int length);
-    int* mcp3008_Scan(int devNum);
+    float* mcp3008_Scan(int devNum);
  
 private:
     unsigned char mode;

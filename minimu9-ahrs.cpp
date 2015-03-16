@@ -1,4 +1,7 @@
 
+#include <errno.h>
+#include <termios.h>
+
 
 #include "version.h"
 #include "vector.h"
@@ -29,7 +32,7 @@ namespace opts = boost::program_options;
 float field_width = 6;
 char* BASE_URL;
 char* COMM_MODE;
-
+int fd1, wr;
 #define FLOAT_FORMAT std::fixed << std::setprecision(3) << std::setw(field_width)
 
 std::ostream & operator << (std::ostream & os, const vector & vector)
@@ -58,17 +61,17 @@ typedef void rotation_output_function(quaternion& rotation);
 
 void output_quaternion(quaternion & rotation)
 {
-    std::cout << rotation;
+    //std::cout << rotation;
 }
 
 void output_matrix(quaternion & rotation)
 {
-    std::cout << rotation.toRotationMatrix();
+    //std::cout << rotation.toRotationMatrix();
 }
 
 void output_euler(quaternion & rotation)
 {
-    std::cout << (vector)(rotation.toRotationMatrix().eulerAngles(2, 1, 0) * (180 / M_PI));
+    //std::cout << (vector)(rotation.toRotationMatrix().eulerAngles(2, 1, 0) * (180 / M_PI));
 }
 
 int millis()
@@ -136,11 +139,15 @@ void rotate(quaternion& rotation, const vector& w, float dt)
     rotation.normalize();
 }
 
-void rotate_velocity(quaternion& velocity, const vector& w, float dt)
+void rotate_velocity(quaternion& velocity, const vector& w, float dt, vector& velocity_top)
 {
+    float shaft_length = 0.75; 
     // Multiply by first order approximation of the
     // quaternion representing this rotation.
-    velocity *= quaternion(1, w(0)*dt/2, w(1)*dt/2, w(2)*dt/2);    
+    velocity *= quaternion(1, w(0)*dt/2, w(1)*dt/2, w(2)*dt/2);   
+    velocity_top[0] = shaft_length * w(0); 
+    velocity_top[1] = shaft_length * w(1); 
+    velocity_top[2] = shaft_length * w(2); 
 }
 
 void fuse_gyro_only(quaternion& rotation, float dt, const vector& angular_velocity,
@@ -150,7 +157,7 @@ void fuse_gyro_only(quaternion& rotation, float dt, const vector& angular_veloci
 }
 
 void fuse_default(quaternion& rotation, quaternion& velocity, float dt, const vector& angular_velocity,
-  const vector& acceleration, const vector& magnetic_field)
+  const vector& acceleration, const vector& magnetic_field, vector& velocity_top)
 {
     vector correction = vector(0, 0, 0);
 
@@ -173,9 +180,14 @@ void fuse_default(quaternion& rotation, quaternion& velocity, float dt, const ve
     }
 
     rotate(rotation, angular_velocity + correction, dt);
-	rotate_velocity(velocity, angular_velocity + correction, dt);
+	  rotate_velocity(velocity, angular_velocity + correction, dt, velocity_top);
+    
 }
 
+void bluetooth_request(char* buffer)
+{
+    wr=write(fd1,buffer,strlen(buffer));
+}
 
 void curl_request(char* buffer, size_t size, char* url)
 {
@@ -192,34 +204,90 @@ curl_easy_setopt(curl, CURLOPT_PUT, 1L);
 curl_easy_setopt(curl, CURLOPT_URL, final_url);
 curl_easy_setopt(curl,CURLOPT_BUFFERSIZE,size);
 res = curl_easy_perform(curl);
-        std::cout << BASE_URL << "  " <<final_url << "   " << buffer  << "    "<< std::endl << std::flush;
+        //std::cout << BASE_URL << "  " <<final_url << "   " << buffer  << "    "<< std::endl << std::flush;
 
 	if(res!=CURLE_OK)
 	{
-		std::cout<<"STuff failed no curl!"<<std::endl;
+		//std::cout<<"STuff failed no curl!"<<std::endl;
 	}
 curl_easy_cleanup(curl);
 
 }//if
 }
 
-void send_force(int* force)
+void send_force(float* force)
 {
+  //std::cout << "    " << force[0] << "    " << force[9] <<std::endl << std::flush;
 	char data_buf[150];
-  sprintf(data_buf, "{\'1\':%d,\'2\':%d,\'3\':%d, \'4\':%d,\'5\':%d,\'6\':%d, \'7\':%d,\'8\':%d,\'9\':%d  ,\    '10\':%d}", force[0], force[1], force[2], force[3], force[4], force[5], force[6], force[7], force[8], force[9]);
+  sprintf(data_buf, "{\'1\':%f,\'2\':%f,\'3\':%f,\'4\':%f,\'5\':%f,\'6\':%f,\'7\':%f,\'8\':%f,\'9\':%f,\'10\':%f}", force[0], force[1], force[2], force[3], force[4], force[5], force[6], force[7], force[8], force[9]);
   char url[20];
 	sprintf(url, "force");
+  //printf("The value of COMM_MODE a char is %s",COMM_MODE);
+  if(*COMM_MODE == '1')
+  {
+  //printf("COMM_MODE is in serial mode");
 	curl_request(data_buf,strlen(data_buf),url);
+  }
+  
+  else if(*COMM_MODE == '0')
+  {
+  bluetooth_request(data_buf);
+  }
+ 
 	
 }
 
 void send_velo(quaternion& velocity)
 {
 	char data_buf[50];
-        sprintf(data_buf, "{\'x\':%f,\'y\':%f,\'z\':%f}", velocity.x(), velocity.y(), velocity.z());
+  sprintf(data_buf, "{\'x\':%f,\'y\':%f,\'z\':%f}", velocity.x(), velocity.y(), velocity.z());
 	char url[20];
 	sprintf(url, "velo");
+  if(*COMM_MODE == '1')
+  {
 	curl_request(data_buf,strlen(data_buf),url);
+  }
+  
+  else if(*COMM_MODE == '0')
+  {
+  bluetooth_request(data_buf);
+  }
+	
+}
+
+void send_velo_top(vector& velocity_top)
+{
+	char data_buf[50];
+  sprintf(data_buf, "{\'x\':%f,\'y\':%f,\'z\':%f}", velocity_top[0], velocity_top[1], velocity_top[2]);
+	char url[20];
+	sprintf(url, "velo_top");
+  if(*COMM_MODE == '1')
+  {
+	curl_request(data_buf,strlen(data_buf),url);
+  }
+   
+  else if(*COMM_MODE == '0')
+  {
+  bluetooth_request(data_buf);
+  }
+	
+}
+
+void send_power(float& power)
+{
+	char data_buf[50];
+  sprintf(data_buf, "{\'power\':%f}", power);
+	char url[20];
+	sprintf(url, "power");
+  if(*COMM_MODE == '1')
+  {
+	curl_request(data_buf,strlen(data_buf),url);
+  }
+  
+  else if(*COMM_MODE == '0')
+  {
+  bluetooth_request(data_buf);
+  }
 	
 }
 
@@ -229,14 +297,33 @@ void send_accel(const vector& acceleration_corrected, float dt)
         sprintf(data_buf, "{\'x\':%f,\'y\':%f,\'z\':%f, \'dt\':%f}", acceleration_corrected[0], acceleration_corrected[1], acceleration_corrected[2], dt);
 	char url[20];
 	sprintf(url, "accel");
+   if(*COMM_MODE == '1')
+  {
 	curl_request(data_buf,strlen(data_buf),url);
+  }
+  
+  else if(*COMM_MODE == '0')
+  {
+  bluetooth_request(data_buf);
+  }
 	
 }
-void ahrs(IMU & imu, fuse_function * fuse, rotation_output_function * output)
+void ahrs(IMU & imu, rotation_output_function * output)
 {
 		mcp3008Spi a2d1("/dev/spidev0.0", SPI_MODE_0, 1000000, 8);
                 mcp3008Spi a2d2("/dev/spidev0.1", SPI_MODE_0, 1000000, 8);
 
+  fd1=open("/dev/ttyAMA0", O_RDWR | O_NOCTTY | O_NDELAY);
+  if (fd1 == -1 )
+    {
+             perror("open_port: Unable to open /dev/ttyS0 – ");
+    }             
+     else
+    {
+             fcntl(fd1, F_SETFL,0);
+             printf("Port 1 has been sucessfully opened and %d is the file description\n",fd1);
+    }
+  
 	curl_global_init(CURL_GLOBAL_ALL);
     imu.loadCalibration();
     imu.enable();
@@ -250,12 +337,22 @@ void ahrs(IMU & imu, fuse_function * fuse, rotation_output_function * output)
     quaternion velocity2 = quaternion::Identity();
     quaternion velocity_temp = quaternion::Identity();
     vector acceleration_corrected;
-    int* force;
+    vector velocity_top;
+    float* force1;
+    float* force2;
+    float power;
     float velocity2_mag;
     float velocity_mag;
     float velocity_old_mag;
     matrix rotation_matrix;
     int start = millis(); // truncate 64-bit return value
+    
+    int fd1;
+    int wr,rd,nbytes,tries;
+    
+
+    
+    
     while(1)
     {
         int last_start = start;
@@ -267,7 +364,7 @@ void ahrs(IMU & imu, fuse_function * fuse, rotation_output_function * output)
         vector acceleration = imu.readAcc();
         vector magnetic_field = imu.readMag();
 	velocity_old = velocity_temp;
-        fuse(rotation, velocity, dt, angular_velocity, acceleration, magnetic_field);
+  fuse_default(rotation, velocity, dt, angular_velocity, acceleration, magnetic_field, velocity_top);
 	rotation_matrix = rotation.toRotationMatrix();
 	velocity_temp = velocity;
 	vector gravity_vector = (vector)rotation_matrix.row(2);
@@ -292,26 +389,48 @@ void ahrs(IMU & imu, fuse_function * fuse, rotation_output_function * output)
         velocity.x() = velocity2.x();
         velocity.y() = velocity2.y();
         velocity.z() = velocity2.z();
-
-	if (count < 101){
+ 
+	if (count < 100){
         velocity.x() = 0;
         velocity.y() = 0;
         velocity.z() = 0;
         count += 1;
         }
-	send_accel(acceleration_corrected, dt);		
-  send_velo(velocity);
+	    
+  force1 = a2d1.mcp3008_Scan(1);
+	force2 = a2d2.mcp3008_Scan(2);
+  force1[8] = force2[0];
+  force1[9] = force2[1];
+     
+   
+  //std::cout << "    " << force1[0] << "    " << force1[9] <<std::endl << std::flush;
+  /*for(int x = 0; x < 10; x++){
+  force1[x] =((244.22311957*force1[x]*force1[x]*(5/1023)*(5/1023))+(817.22895852*force1[x]*5/1023) - 129.26615357)*(9.81/1000);
+  }*/
+    
   
-  force = a2d1.mcp3008_Scan(1);
-	force = a2d2.mcp3008_Scan(2);
-  send_force(force); 
+  //send data
+  send_accel(acceleration_corrected, dt);		
+  send_velo(velocity);
+  send_velo_top(velocity_top);
+  send_force(force1);  
+  
+  
+  //CODE FOR POWER CALCULATIONS
+  
+  power = 1337;
+  send_power(power);
+  
+  
  
-        std::cout << "    " << acceleration << "    " << velocity << "    " << dt << std::endl << std::flush;
+        //std::cout << "    " << acceleration << "    " << velocity << "    " << dt << std::endl << std::flush;
         // Ensure that each iteration of the loop takes at least 20 ms.
-        while(millis() - start < 20)
+        while(millis() - start < 10)
         {
             usleep(1000);
         }
+        
+        
     }
 curl_global_cleanup();
 }
@@ -354,14 +473,14 @@ int main(int argc, char *argv[])
 
         if(options.count("help"))
         {
-            std::cout << desc << std::endl;
-            std::cout << "For more information, run: man minimu9-ahrs" << std::endl;
+            //std::cout << desc << std::endl;
+            //std::cout << "For more information, run: man minimu9-ahrs" << std::endl;
             return 0;
         }
         
         if (options.count("version"))
         {
-            std::cout << VERSION << std::endl;
+            //std::cout << VERSION << std::endl;
             return 0;
         }
 
@@ -406,12 +525,14 @@ int main(int argc, char *argv[])
            // ahrs(imu, &fuse_compass_only, output);
         }
         else if (mode == "normal")
-        {
+        {            
              BASE_URL = (char*)malloc(strlen(url.c_str())*sizeof(char));
              strcpy(BASE_URL,url.c_str());
              COMM_MODE = (char*)malloc(strlen(comm_mode.c_str())*sizeof(char));
+             //COMM_MODE = (int)comm_mode;
              strcpy(COMM_MODE,comm_mode.c_str());
-            ahrs(imu, &fuse_default, output);
+             std::cout << COMM_MODE << std::endl << std::flush;
+            ahrs(imu, output);
         }
         else
         {
