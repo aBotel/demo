@@ -186,7 +186,11 @@ void fuse_default(quaternion& rotation, quaternion& velocity, float dt, const ve
 
 void bluetooth_request(char* buffer)
 {
+    
     wr=write(fd1,buffer,strlen(buffer));
+    //std::cout << buffer <<std::endl << std::flush;
+    //wr = write(fd1, "\n", strlen("\n"));
+    free(buffer);
 }
 
 void curl_request(char* buffer, size_t size, char* url)
@@ -208,7 +212,7 @@ res = curl_easy_perform(curl);
 
 	if(res!=CURLE_OK)
 	{
-		//std::cout<<"STuff failed no curl!"<<std::endl;
+		std::cout<<"STuff failed no curl!"<<std::endl;
 	}
 curl_easy_cleanup(curl);
 
@@ -218,95 +222,98 @@ curl_easy_cleanup(curl);
 void send_force(float* force)
 {
   //std::cout << "    " << force[0] << "    " << force[9] <<std::endl << std::flush;
-	char data_buf[150];
-  sprintf(data_buf, "{\'1\':%f,\'2\':%f,\'3\':%f,\'4\':%f,\'5\':%f,\'6\':%f,\'7\':%f,\'8\':%f,\'9\':%f,\'10\':%f}", force[0], force[1], force[2], force[3], force[4], force[5], force[6], force[7], force[8], force[9]);
-  char url[20];
-	sprintf(url, "force");
+	char *data_buf;
+  
+  asprintf(&data_buf, "{\'1\':%f,\'2\':%f,\'3\':%f,\'4\':%f,\'5\':%f,\'6\':%f,\'7\':%f,\'8\':%f,\'9\':%f,\'10\':%f}\n", force[0], force[1], force[2], force[3], force[4], force[5], force[6], force[7], force[8], force[9]);
+ // char url[20];
+//	sprintf(url, "force");
   //printf("The value of COMM_MODE a char is %s",COMM_MODE);
   if(*COMM_MODE == '1')
   {
   //printf("COMM_MODE is in serial mode");
-	curl_request(data_buf,strlen(data_buf),url);
+	curl_request(data_buf,strlen(data_buf),"force");
   }
   
   else if(*COMM_MODE == '0')
   {
   bluetooth_request(data_buf);
   }
+  //free(data_buf);
  
 	
 }
 
 void send_velo(quaternion& velocity)
 {
-	char data_buf[50];
-  sprintf(data_buf, "{\'x\':%f,\'y\':%f,\'z\':%f}", velocity.x(), velocity.y(), velocity.z());
-	char url[20];
-	sprintf(url, "velo");
+	char *data_buf;
+  asprintf(&data_buf, "{\'x\':%f,\'y\':%f,\'z\':%f}\n", velocity.x(), velocity.y(), velocity.z());
+//	char url[20];
+//	sprintf(url, "velo");
   if(*COMM_MODE == '1')
   {
-	curl_request(data_buf,strlen(data_buf),url);
+	curl_request(data_buf,strlen(data_buf),"velo");
   }
   
   else if(*COMM_MODE == '0')
   {
   bluetooth_request(data_buf);
   }
-	
+	//free(data_buf);
 }
 
 void send_velo_top(vector& velocity_top)
 {
-	char data_buf[50];
-  sprintf(data_buf, "{\'x\':%f,\'y\':%f,\'z\':%f}", velocity_top[0], velocity_top[1], velocity_top[2]);
-	char url[20];
-	sprintf(url, "velo_top");
+	char *data_buf;
+  asprintf(&data_buf, "{\'x\':%f,\'y\':%f,\'z\':%f}\n", velocity_top[0], velocity_top[1], velocity_top[2]);
+	//char url[20];
+	//sprintf(url, "velo_top");
   if(*COMM_MODE == '1')
   {
-	curl_request(data_buf,strlen(data_buf),url);
+	curl_request(data_buf,strlen(data_buf),"velo_top");
   }
    
   else if(*COMM_MODE == '0')
   {
   bluetooth_request(data_buf);
   }
-	
+	//free(data_buf);
 }
 
 void send_power(float& power)
 {
-	char data_buf[50];
-  sprintf(data_buf, "{\'power\':%f}", power);
-	char url[20];
-	sprintf(url, "power");
+	char *data_buf;
+  asprintf(&data_buf, "{\'power\':%f}\n", power);
+	//char url[20];
+	//sprintf(url, "power");
   if(*COMM_MODE == '1')
   {
-	curl_request(data_buf,strlen(data_buf),url);
+	curl_request(data_buf,strlen(data_buf),"power");
   }
   
   else if(*COMM_MODE == '0')
   {
   bluetooth_request(data_buf);
   }
-	
+	//free(data_buf);
 }
 
 void send_accel(const vector& acceleration_corrected, float dt)
 {
-	char data_buf[50];
-        sprintf(data_buf, "{\'x\':%f,\'y\':%f,\'z\':%f, \'dt\':%f}", acceleration_corrected[0], acceleration_corrected[1], acceleration_corrected[2], dt);
-	char url[20];
-	sprintf(url, "accel");
-   if(*COMM_MODE == '1')
+	char *data_buf;
+  asprintf(&data_buf, "{\'x\':%f,\'y\':%f,\'z\':%f, \'dt\':%f}\n", acceleration_corrected[0], acceleration_corrected[1], acceleration_corrected[2], dt);
+	
+	//asprintf(url, "accel");
+ if(*COMM_MODE == '1')
   {
-	curl_request(data_buf,strlen(data_buf),url);
+  
+	curl_request(data_buf,strlen(data_buf),"acceltest");
   }
   
   else if(*COMM_MODE == '0')
   {
   bluetooth_request(data_buf);
   }
-	
+	//free(data_buf);
 }
 void ahrs(IMU & imu, rotation_output_function * output)
 {
@@ -410,10 +417,14 @@ void ahrs(IMU & imu, rotation_output_function * output)
     
   
   //send data
-  send_accel(acceleration_corrected, dt);		
+  send_accel(acceleration_corrected, dt);
+  usleep(1000);		
   send_velo(velocity);
+  usleep(1000);
   send_velo_top(velocity_top);
-  send_force(force1);  
+  usleep(1000);
+  send_force(force1);
+  usleep(1000);  
   
   
   //CODE FOR POWER CALCULATIONS
