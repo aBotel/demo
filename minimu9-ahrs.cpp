@@ -224,7 +224,7 @@ void send_force(float* force)
   //std::cout << "    " << force[0] << "    " << force[9] <<std::endl << std::flush;
 	char *data_buf;
   
-  asprintf(&data_buf, "{\'1\':%f,\'2\':%f,\'3\':%f,\'4\':%f,\'5\':%f,\'6\':%f,\'7\':%f,\'8\':%f,\'9\':%f,\'10\':%f}\n", force[0], force[1], force[2], force[3], force[4], force[5], force[6], force[7], force[8], force[9]);
+  asprintf(&data_buf, "'{\"force\":{\"1\":%f,\"2\":%f,\"3\":%f,\"4\":%f,\"5\":%f,\"6\":%f,\"7\":%f,\"8\":%f,\"9\":%f,\"10\":%f}}'\n", force[0], force[1], force[2], force[3], force[4], force[5], force[6], force[7], force[8], force[9]);
  // char url[20];
 //	sprintf(url, "force");
   //printf("The value of COMM_MODE a char is %s",COMM_MODE);
@@ -246,7 +246,8 @@ void send_force(float* force)
 void send_velo(quaternion& velocity)
 {
 	char *data_buf;
-  asprintf(&data_buf, "{\'x\':%f,\'y\':%f,\'z\':%f}\n", velocity.x(), velocity.y(), velocity.z());
+  asprintf(&data_buf, "'{\"velof\":{\"x\":%f,\"y\":%f,\"z\":%f}}'\n", velocity.x(), velocity.y(), velocity.z());
+  //asprintf(&data_buf,"%f %f %f\n", velocity.x(), velocity.y(), velocity.z());
 //	char url[20];
 //	sprintf(url, "velo");
   if(*COMM_MODE == '1')
@@ -264,7 +265,7 @@ void send_velo(quaternion& velocity)
 void send_velo_top(vector& velocity_top)
 {
 	char *data_buf;
-  asprintf(&data_buf, "{\'x\':%f,\'y\':%f,\'z\':%f}\n", velocity_top[0], velocity_top[1], velocity_top[2]);
+  asprintf(&data_buf, "'{\"velotop\":{\"x\":%f,\"y\":%f,\"z\":%f}}'\n", velocity_top[0], velocity_top[1], velocity_top[2]);
 	//char url[20];
 	//sprintf(url, "velo_top");
   if(*COMM_MODE == '1')
@@ -282,7 +283,7 @@ void send_velo_top(vector& velocity_top)
 void send_power(float& power)
 {
 	char *data_buf;
-  asprintf(&data_buf, "{\'power\':%f}\n", power);
+  asprintf(&data_buf, "'{\"power\":{\"p\":%f}}'\n", power);
 	//char url[20];
 	//sprintf(url, "power");
   if(*COMM_MODE == '1')
@@ -300,7 +301,7 @@ void send_power(float& power)
 void send_accel(const vector& acceleration_corrected, float dt)
 {
 	char *data_buf;
-  asprintf(&data_buf, "{\'x\':%f,\'y\':%f,\'z\':%f, \'dt\':%f}\n", acceleration_corrected[0], acceleration_corrected[1], acceleration_corrected[2], dt);
+  asprintf(&data_buf, "'{\"accel\":{\"x\":%f,\"y\":%f,\"z\":%f, \"dt\":%f}}'\n", acceleration_corrected[0], acceleration_corrected[1], acceleration_corrected[2], dt);
 	
 	//asprintf(url, "accel");
  if(*COMM_MODE == '1')
@@ -417,22 +418,28 @@ void ahrs(IMU & imu, rotation_output_function * output)
     
   
   //send data
-  send_accel(acceleration_corrected, dt);
-  usleep(1000);		
-  send_velo(velocity);
+  //send_accel(acceleration_corrected, dt);
   usleep(1000);
-  send_velo_top(velocity_top);
-  usleep(1000);
+  
+  if (count == 100){		
   send_force(force1);
+  //std::cout <<velocity << std::endl << std::flush;
+  }
+  
+  usleep(1000);
+  //send_velo_top(velocity_top);
+  usleep(1000);
+  //send_force(force1);
   usleep(1000);  
   
   
   //CODE FOR POWER CALCULATIONS
   
   power = 1337;
-  send_power(power);
+  //send_power(power);
   
-  
+  //free(force1);
+  //free(force2);
  
         //std::cout << "    " << acceleration << "    " << velocity << "    " << dt << std::endl << std::flush;
         // Ensure that each iteration of the loop takes at least 20 ms.
@@ -570,3 +577,4 @@ int main(int argc, char *argv[])
         return 9;
     }
 }
+

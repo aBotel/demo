@@ -128,9 +128,9 @@ float* mcp3008Spi::mcp3008_Scan(int devNum)
        
       //a2dValf = ((244.22311957*(a2dVal*5/1023)*(a2dVal*(5/1023)))+(817.22895852*a2dVal*5/1023) - 129.26615357)*(9.81/1000);
       
-      a2dValc = a2dVal*(5.0/1023.0);
+      a2dValc = a2dVal*(4.58/1023.0);
       
-      a2dValf = 244.22311957*a2dValc*a2dValc+817.22895852*a2dValc-129.26615357;
+      a2dValf = 412.73707207*a2dValc*a2dValc+1076.3672085*a2dValc-111.1689124;
       
       a2dValf *= (9.81/1000.0);
       
@@ -148,7 +148,7 @@ float* mcp3008Spi::mcp3008_Scan(int devNum)
 	//cout << endl;
 	a2dChannel = 0;
   return force_array;
-}
+} 
 
 
 /*************************************************
