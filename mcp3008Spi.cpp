@@ -137,13 +137,16 @@ float* mcp3008Spi::mcp3008_Scan(int devNum)
       if(a2dValf < 0.0){
           a2dValf = 0.0;
       }
+     // if((a2dChannel == 0) || (a2dChannel == 1) ){
+     // a2dValf *= 3.421709*0.60108;
+    //  }
        
 	  force_array[a2dChannel] = a2dValf;
     
    
     
       
-		//cout << "chnl"<<a2dChannel<<"=" << a2dValf << "   " << a2dVal;
+		//cout << "chnl"<<a2dChannel<<"=" << a2dValf << "   " << a2dVal<<std::endl << std::flush;
 	}
 	//cout << endl;
 	a2dChannel = 0;

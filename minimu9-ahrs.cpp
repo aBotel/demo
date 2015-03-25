@@ -141,7 +141,7 @@ void rotate(quaternion& rotation, const vector& w, float dt)
 
 void rotate_velocity(quaternion& velocity, const vector& w, float dt, vector& velocity_top)
 {
-    float shaft_length = 0.75; 
+    float shaft_length = 0.5; 
     // Multiply by first order approximation of the
     // quaternion representing this rotation.
     velocity *= quaternion(1, w(0)*dt/2, w(1)*dt/2, w(2)*dt/2);   
@@ -188,7 +188,7 @@ void bluetooth_request(char* buffer)
 {
     
     wr=write(fd1,buffer,strlen(buffer));
-    //std::cout << buffer <<std::endl << std::flush;
+   // std::cout << buffer <<std::endl << std::flush;
     //wr = write(fd1, "\n", strlen("\n"));
     free(buffer);
 }
@@ -217,6 +217,31 @@ res = curl_easy_perform(curl);
 curl_easy_cleanup(curl);
 
 }//if
+}
+
+void send_all(float* force, quaternion& velocity, vector& velocity_top, float& power, float& powerb, float& powert, const vector& acceleration_corrected, float dt )
+{
+  //std::cout << "    " << force[0] << "    " << force[9] <<std::endl << std::flush;
+	char *data_buf;
+  
+  asprintf(&data_buf, "'{\"data\":{\"1\":%f,\"2\":%f,\"3\":%f,\"4\":%f,\"5\":%f,\"6\":%f,\"7\":%f,\"8\":%f,\"9\":%f,\"10\":%f,\"xvb\":%f,\"yvb\":%f,\"zvb\":%f,\"xvt\":%f,\"yvt\":%f,\"zvt\":%f,\"p\":%f,\"pb\":%f,\"pt\":%f,\"xa\":%f,\"ya\":%f,\"za\":%f,\"dt\":%f }}'\n", force[0], force[1], force[2], force[3], force[4], force[5], force[6], force[7], force[8], force[9], velocity.x(), velocity.y(), velocity.z(), velocity_top[0], velocity_top[1], velocity_top[2], power, powerb, powert, acceleration_corrected[0], acceleration_corrected[1], acceleration_corrected[2], dt );
+//  std::cout << data_buf << std::endl << std::flush;
+ // char url[20];
+//	sprintf(url, "force");
+  //printf("The value of COMM_MODE a char is %s",COMM_MODE);
+  if(*COMM_MODE == '1')
+  {
+  //printf("COMM_MODE is in serial mode");
+	curl_request(data_buf,strlen(data_buf),"force");
+  }
+  
+  else if(*COMM_MODE == '0')
+  {
+  bluetooth_request(data_buf);
+  }
+  //free(data_buf);
+ 
+	
 }
 
 void send_force(float* force)
@@ -337,6 +362,10 @@ void ahrs(IMU & imu, rotation_output_function * output)
     imu.enable();
     imu.measureOffsets();
     int count = 0;
+    int countx = 0;
+    int county = 0;
+    int countz = 0;
+
     // The quaternion that can convert a vector in body coordinates
     // to ground coordinates when it its changed to a matrix.
     quaternion rotation = quaternion::Identity();
@@ -349,6 +378,8 @@ void ahrs(IMU & imu, rotation_output_function * output)
     float* force1;
     float* force2;
     float power;
+    float powert;
+    float powerb;
     float velocity2_mag;
     float velocity_mag;
     float velocity_old_mag;
@@ -371,39 +402,104 @@ void ahrs(IMU & imu, rotation_output_function * output)
         vector angular_velocity = imu.readGyro();
         vector acceleration = imu.readAcc();
         vector magnetic_field = imu.readMag();
-	velocity_old = velocity_temp;
-  fuse_default(rotation, velocity, dt, angular_velocity, acceleration, magnetic_field, velocity_top);
-	rotation_matrix = rotation.toRotationMatrix();
+	      velocity_old = velocity_temp;
+
+	 fuse_default(rotation, velocity, dt, angular_velocity, acceleration, magnetic_field, velocity_top);
+   if(dt > 0.025){
+    dt = 0.015;
+   }
+  
+  rotation_matrix = rotation.toRotationMatrix();
 	velocity_temp = velocity;
 	vector gravity_vector = (vector)rotation_matrix.row(2);
   acceleration_corrected[0] = acceleration[0] + gravity_vector[0];
 	acceleration_corrected[1] = acceleration[1] + gravity_vector[1];
 	acceleration_corrected[2] = acceleration[2] + gravity_vector[2];
-	velocity2.x() = acceleration_corrected[0]*9.81*dt + velocity.x();
-        velocity2.y() = acceleration_corrected[1]*9.81*dt + velocity.y(); 
-	velocity2.z() = acceleration_corrected[2]*9.81*dt + velocity.z();  
-	velocity2_mag = sqrtf(velocity2.x()*velocity2.x() + velocity2.y()*velocity2.y() + velocity2.z()*velocity2.z());
-	velocity_mag = sqrtf(velocity.x()*velocity.x() + velocity.y()*velocity.y() + velocity.z()*velocity.z());
-	velocity_old_mag = sqrtf(velocity_old.x()*velocity_old.x() + velocity_old.y()*velocity_old.y() +  velocity_old.z()*velocity_old.z());
-        
-        if( velocity_mag < velocity2_mag && velocity_mag < velocity_old_mag){
-        velocity.x() = 0;
-	velocity.y() = 0;
-	velocity.z() = 0;
-	velocity2.x() = acceleration_corrected[0]*9.81*dt + velocity.x();
-	velocity2.y() = acceleration_corrected[1]*9.81*dt + velocity.y();
-	velocity2.z() = acceleration_corrected[2]*9.81*dt + velocity.z();
+
+	if(abs(acceleration_corrected[0]) < 0.002){
+	acceleration_corrected[0] = 0;
 	}
-        velocity.x() = velocity2.x();
-        velocity.y() = velocity2.y();
-        velocity.z() = velocity2.z();
+        
+	if(abs(acceleration_corrected[1]) < 0.002){
+    acceleration_corrected[1] = 0;
+  }
+	if(abs(acceleration_corrected[2]) < 0.002){
+    acceleration_corrected[2] = 0;
+  }
+
+
+  	velocity2.x() = acceleration_corrected[0]*9.81*dt + velocity.x();
+    velocity2.y() = acceleration_corrected[1]*9.81*dt + velocity.y(); 
+  	velocity2.z() = acceleration_corrected[2]*9.81*dt + velocity.z();// + 0.166*velocity_top[2];  
+  	velocity2_mag = sqrtf(velocity2.x()*velocity2.x() + velocity2.y()*velocity2.y() + velocity2.z()*velocity2.z());
+  	velocity_mag = sqrtf(velocity.x()*velocity.x() + velocity.y()*velocity.y() + velocity.z()*velocity.z());
+  	velocity_old_mag = sqrtf(velocity_old.x()*velocity_old.x() + velocity_old.y()*velocity_old.y() +  velocity_old.z()*velocity_old.z());
+        
+	if( velocity_mag < velocity2_mag && velocity_mag < velocity_old_mag){
+    velocity.x() = 0;
+  	velocity.y() = 0;
+  	velocity.z() = 0;
+  	velocity2.x() = acceleration_corrected[0]*9.81*dt + velocity.x();
+  	velocity2.y() = acceleration_corrected[1]*9.81*dt + velocity.y();
+  	velocity2.z() = acceleration_corrected[2]*9.81*dt + velocity.z();
+	}
+		
+	if(abs(velocity2.x() - velocity.x()) < 0.01 && acceleration_corrected[0] == 0){
+  	countx += 1;
+  }
+  	else {
+  	countx = 0;
+  }
+  	if (countx >= 25){
+  	countx = 0;
+  	velocity2.x() = 0;
+  }
+  
+  if(abs(velocity2.y() - velocity.y()) < 0.01 && acceleration_corrected[1] == 0){
+          county += 1;
+  }
+          else {
+          county = 0;
+  }
+          if (county >= 25){
+          county = 0;
+          velocity2.y() = 0;
+  }
+  
+  if(abs(velocity2.z() - velocity.z()) < 0.01 && acceleration_corrected[2] == 0){
+     countz += 1;
+  }
+  else {
+     countz = 0;
+  }
+  if (countz >= 25){
+    countz = 0;
+    velocity2.z() = 0;
+  }
+  
+   velocity.x() = velocity2.x();
+   velocity.y() = velocity2.y();
+   velocity.z() = velocity2.z();
  
-	if (count < 100){
-        velocity.x() = 0;
-        velocity.y() = 0;
-        velocity.z() = 0;
-        count += 1;
-        }
+ 	if (count < 100){
+     velocity.x() = 0;
+     velocity.y() = 0;
+     velocity.z() = 0;
+     count += 1;
+  }
+
+  /*if(abs(velocity.x()) < 0.005){
+  velocity.x() = 0;
+  }
+  
+  if(abs(velocity.y()) < 0.005){
+  velocity.y() = 0;
+  }
+  
+  if(abs(velocity.z()) < 0.005){
+  velocity.z() = 0;
+  }
+*/
 	    
   force1 = a2d1.mcp3008_Scan(1);
 	force2 = a2d2.mcp3008_Scan(2);
@@ -419,23 +515,35 @@ void ahrs(IMU & imu, rotation_output_function * output)
   
   //send data
   //send_accel(acceleration_corrected, dt);
-  usleep(1000);
+  //usleep(1000);
   
-  if (count == 100){		
-  send_force(force1);
+  //if (count == 100){		
+ // send_force(force1);
   //std::cout <<velocity << std::endl << std::flush;
-  }
+ // }
+ 
+ // power top
+  powert = abs((force1[8]-force1[9])*velocity_top[2])+abs((force1[0]-force1[1])*velocity_top[0])/1.5;
   
-  usleep(1000);
+   
+  // power bottom
+  powerb = 1.5*abs((force1[2]-force1[3])*velocity.z())+abs((force1[4]-force1[5])*velocity.y())+abs((force1[6]-force1[7])*velocity.x());
+  //power total
+  power = powert+powerb;
+  
+  if(dt < 0.016){
+  send_all(force1, velocity, velocity_top, power, powerb, powert, acceleration_corrected, dt);
+  }
+  //usleep(1000);
   //send_velo_top(velocity_top);
-  usleep(1000);
+ // usleep(1000);
   //send_force(force1);
-  usleep(1000);  
+  //usleep(1000);  
   
   
   //CODE FOR POWER CALCULATIONS
   
-  power = 1337;
+  
   //send_power(power);
   
   //free(force1);
@@ -443,7 +551,7 @@ void ahrs(IMU & imu, rotation_output_function * output)
  
         //std::cout << "    " << acceleration << "    " << velocity << "    " << dt << std::endl << std::flush;
         // Ensure that each iteration of the loop takes at least 20 ms.
-        while(millis() - start < 10)
+        while(millis() - start < 12)
         {
             usleep(1000);
         }
